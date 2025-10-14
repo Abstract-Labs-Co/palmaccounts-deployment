@@ -27,7 +27,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: palmaccounts-postgres
-    restart: unless-stopped
+    restart: always
     ports:
       - "5432:5432"
     environment:
@@ -42,6 +42,7 @@ services:
   api:
     image: axoblade/palmaccounts-api #fixerug/palm-api
     container_name: palm-api
+    restart: always
     depends_on:
       - postgres
     ports:
@@ -62,6 +63,7 @@ services:
   pos:
     image: axoblade/palmaccounts-pos #fixerug/palm-pos
     container_name: palm-pos
+    restart: always
     depends_on:
       - api
     ports:
@@ -79,6 +81,7 @@ services:
   admin:
     image: axoblade/palmaccounts-admin #fixerug/palm-admin
     container_name: palm-admin
+    restart: always
     depends_on:
       - api
     ports:
