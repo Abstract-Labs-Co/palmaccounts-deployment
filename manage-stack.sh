@@ -69,10 +69,22 @@ case "$1" in
         echo "🩺 Running Health Check..."
         ./health-check.sh
         ;;
+    monitor)
+        if [ -z "$2" ]; then
+            echo "🔍 Monitoring ALL services logs (real-time)"
+            echo "Use: $0 monitor <service-name> for specific service"
+            echo "Press Ctrl+C to stop"
+            ./monitor-logs.sh
+        else
+            echo "🔍 Monitoring $2 service logs (real-time)"
+            echo "Press Ctrl+C to stop"
+            ./monitor-logs.sh $2
+        fi
+        ;;
     *)
         echo "Docker Swarm Stack Management Script"
         echo ""
-        echo "Usage: $0 {status|logs|scale|update|restart|stop|nodes|watchtower-logs|cleanup-logs|backup-logs|health}"
+        echo "Usage: $0 {status|logs|scale|update|restart|stop|nodes|watchtower-logs|cleanup-logs|backup-logs|health|monitor}"
         echo ""
         echo "Commands:"
         echo "  status              - Show services status and processes"
@@ -86,6 +98,7 @@ case "$1" in
         echo "  cleanup-logs       - Show Docker cleanup service logs"
         echo "  backup-logs        - Show database backup service logs"
         echo "  health             - Run comprehensive health check"
+        echo "  monitor [service]  - Real-time log monitoring (all services or specific)"
         echo ""
         echo "Examples:"
         echo "  $0 status"
@@ -93,5 +106,7 @@ case "$1" in
         echo "  $0 scale api 3"
         echo "  $0 restart watchtower"
         echo "  $0 health"
+        echo "  $0 monitor          # Monitor all services"
+        echo "  $0 monitor efris    # Monitor only EFRIS service"
         ;;
 esac

@@ -85,6 +85,12 @@ After deployment, services are available at:
 # View Watchtower logs (to see update activities)
 ./manage-stack.sh watchtower-logs
 
+# Real-time monitoring of all services
+./manage-stack.sh monitor
+
+# Real-time monitoring of specific service
+./manage-stack.sh monitor efris
+
 # Stop the entire stack
 ./manage-stack.sh stop
 ```
@@ -219,7 +225,48 @@ The health monitor provides:
 - Resource usage overview
 - Storage usage statistics
 - Recent log snippets from all services
-- Failed service detection## 🔧 Configuration
+- Failed service detection
+
+## 📊 Real-time Log Monitoring
+
+Monitor logs in real-time for debugging and monitoring:
+
+### Monitor All Services
+
+```bash
+# Monitor all services simultaneously (interleaved logs)
+./manage-stack.sh monitor
+
+# Or use the direct script
+./monitor-logs.sh
+```
+
+### Monitor Specific Service
+
+```bash
+# Monitor single service in real-time
+./manage-stack.sh monitor efris
+./manage-stack.sh monitor api
+
+# Alternative with more options
+docker service logs -f --timestamps palm-stack_efris
+docker service logs --tail 100 -f palm-stack_api
+```
+
+### Special Service Monitoring
+
+```bash
+# Monitor update activities
+./manage-stack.sh watchtower-logs
+
+# Monitor cleanup activities
+./manage-stack.sh cleanup-logs
+
+# Monitor backup activities
+./manage-stack.sh backup-logs
+```
+
+**Tip**: Press `Ctrl+C` to stop real-time monitoring## 🔧 Configuration
 
 ### Environment Variables
 
