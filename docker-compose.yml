@@ -1,0 +1,277 @@
+version: "3.8"
+
+services:
+  efris:
+    image: axoblade/flawless-on-prem
+    ports:
+      - "3005:3001"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - MONGO_URL=mongodb://mongo:27017/flawless
+      - LOGS_URL=mongodb://mongo:27017/flawless_logs
+    depends_on:
+      - mongo
+    networks:
+      - flawless-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+
+  efris-router:
+    image: axoblade/efris-router
+    ports:
+      - "3122:80"
+    volumes:
+      - ./tmp:/tmp_privateKeys # Uses ./tmp directory in current folder
+    tty: true
+    networks:
+      - flawless-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 5
+        window: 120s
+
+  watchtower:
+    image: containrrr/watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_POLL_INTERVAL=1800 # Check for updates every 30 minutes
+      - WATCHTOWER_CLEANUP=true # Remove old images after updating
+      - WATCHTOWER_INCLUDE_RESTARTING=true
+      - WATCHTOWER_INCLUDE_STOPPED=true
+    command: --interval 1800 --cleanup
+    networks:
+      - flawless-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 5
+        window: 120s
+      placement:
+        constraints:
+          - node.role == manager
+
+  docker-cleanup:
+    image: alpine:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: >
+      sh -c "
+        apk add --no-cache docker-cli &&
+        while true; do
+          echo 'Running Docker cleanup...' &&
+          docker system prune -f --volumes &&
+          docker image prune -a -f &&
+          docker container prune -f &&
+          docker volume prune -f &&
+          echo 'Cleanup completed. Sleeping for 6 hours...' &&
+          sleep 21600
+        done
+      "
+    networks:
+      - flawless-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 30s
+        max_attempts: 3
+        window: 300s
+      placement:
+        constraints:
+          - node.role == manager
+
+  mongo:
+    image: mongo:6.0
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - flawless-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 5
+        window: 120s
+      placement:
+        constraints:
+          - node.role == manager
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata_local_all:/var/lib/postgresql/data
+    networks:
+      - flawless-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 5
+        window: 120s
+      placement:
+        constraints:
+          - node.role == manager
+
+  api:
+    image: axoblade/palmaccounts-api #fixerug/palm-api
+    depends_on:
+      - postgres
+    ports:
+      - "3001:3000"
+    environment:
+      PORT: 3000
+      COOKIE_SECURE: 0
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: postgres
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/postgres"
+      SHARED_DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/palmaccounts_global"
+      CORS_ORIGINS: "http://localhost:3002,http://localhost:3003,http://pos:3002,https://192.168.100.240:3002,https://192.168.100.240:3003,http://admin:3003,https://localhost:3002,https://192.168.100.240:3002,http://192.168.100.240:3002,http://192.168.100.240:3003,http://192.168.100.240:3001,https://192.168.100.240:3003,https://192.168.100.240:3001,https://serverone:3002,https://serverone:3001,https://serverone:3003,http://serverone:3002,http://serverone:3001,http://serverone:3003,http://192.168.100.240:3003,http://192.168.100.240:3002"
+    networks:
+      - flawless-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 5
+        window: 120s
+
+  pos:
+    image: axoblade/palmaccounts-pos #fixerug/palm-pos
+    depends_on:
+      - api
+    ports:
+      - "3002:3000"
+    environment:
+      PORT: 3000
+      PUBLIC_INTERNAL_API_BASE_URL: "http://api:3000"
+      DISABLE_CSRF: "1"
+      PUBLIC_API_PORT: 3001
+      COOKIE_SECURE: 0
+      CORS_ORIGINS: "http://localhost:3002,http://localhost:3003,http://pos:3002,https://192.168.100.240:3002,https://192.168.100.240:3003,http://admin:3003,https://localhost:3002,https://192.168.100.240:3002,http://192.168.100.240:3002,http://192.168.100.240:3003,http://192.168.100.240:3001,https://192.168.100.240:3003,https://192.168.100.240:3001,https://serverone:3002,https://serverone:3001,https://serverone:3003,http://serverone:3002,http://serverone:3001,http://serverone:3003,http://192.168.100.240:3003,http://192.168.100.240:3002"
+    networks:
+      - flawless-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 5
+        window: 120s
+
+  admin:
+    image: axoblade/palmaccounts-admin #fixerug/palm-admin
+    depends_on:
+      - api
+    ports:
+      - "3003:3000"
+    environment:
+      PORT: 3000
+      PUBLIC_INTERNAL_API_BASE_URL: "http://api:3000"
+      PUBLIC_API_PORT: 3001
+      COOKIE_SECURE: 0
+      DISABLE_CSRF: "1"
+      BODY_SIZE_LIMIT: "50M"
+      CORS_ORIGINS: "http://localhost:3002,http://localhost:3003,http://pos:3002,https://192.168.100.240:3002,https://192.168.100.240:3003,http://admin:3003,https://localhost:3002,https://192.168.100.240:3002,http://192.168.100.240:3002,http://192.168.100.240:3003,http://192.168.100.240:3001,https://192.168.100.240:3003,https://192.168.100.240:3001,https://serverone:3002,https://serverone:3001,https://serverone:3003,http://serverone:3002,http://serverone:3001,http://serverone:3003,http://192.168.100.240:3003,http://192.168.100.240:3002"
+    networks:
+      - flawless-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 5
+        window: 120s
+
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@palmaccounts.com
+      PGADMIN_DEFAULT_PASSWORD: password
+    ports:
+      - "5050:80"
+    networks:
+      - flawless-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 5
+        window: 120s
+
+  db-backup:
+    image: alpine:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./backups:/backups
+    command: >
+      sh -c "
+        apk add --no-cache docker-cli mongodb-tools postgresql-client &&
+        while true; do
+          echo 'Starting database backup...' &&
+          mkdir -p /backups/$$(date +%Y%m%d) &&
+          echo 'Cleaning old backups (keeping last 7 days)...' &&
+          find /backups -type d -mtime +7 -exec rm -rf {} + 2>/dev/null || true &&
+          echo 'Backup completed. Next backup in 24 hours...' &&
+          sleep 86400
+        done
+      "
+    networks:
+      - flawless-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 60s
+        max_attempts: 3
+        window: 300s
+      placement:
+        constraints:
+          - node.role == manager
+
+volumes:
+  mongo-data:
+  pgdata_local_all:
+
+networks:
+  flawless-net:
+    driver: overlay
+    attachable: true
