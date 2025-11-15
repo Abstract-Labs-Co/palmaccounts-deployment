@@ -334,8 +334,14 @@ docker stack ps palm-stack
    ```
 
 4. **Swarm Not Initialized**: Run the deployment script which will initialize it
+
    ```bash
    ./deploy-swarm.sh
+   ```
+
+5. **Docker Permission Issues**: If services can't access Docker daemon
+   ```bash
+   ./fix-docker-permissions.sh --fix
    ```
 
 ### Scaling Services
@@ -382,12 +388,16 @@ Important data locations to backup:
 
 ```
 palm_deployment/
-├── docker-compose.yml     # Main stack configuration
-├── deploy-swarm.sh       # Initial deployment script
-├── manage-stack.sh       # Stack management script
-├── README.md            # This documentation
-├── .env                 # Environment variables (create this)
-└── tmp/                 # EFRIS private keys directory (auto-created)
+├── docker-compose.yml          # Main stack configuration
+├── deploy-swarm.sh            # Initial deployment script
+├── manage-stack.sh            # Stack management script
+├── monitor-logs.sh            # Real-time log monitoring
+├── health-check.sh            # System health checker
+├── fix-docker-permissions.sh  # Docker permissions fixer
+├── README.md                  # This documentation
+├── .env                       # Environment variables (create this)
+├── tmp/                       # EFRIS private keys directory (auto-created)
+└── backups/                   # Database backup directories (auto-created)
 ```
 
 ## 🆘 Support

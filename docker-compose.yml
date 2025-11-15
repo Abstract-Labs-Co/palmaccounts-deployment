@@ -4,7 +4,7 @@ services:
   efris:
     image: axoblade/flawless-on-prem
     ports:
-      - "3005:3001"
+      - "3201:3001"
     env_file:
       - .env
     environment:
@@ -46,15 +46,18 @@ services:
         window: 120s
 
   watchtower:
-    image: containrrr/watchtower
+    image: containrrr/watchtower:latest
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - WATCHTOWER_POLL_INTERVAL=1800 # Check for updates every 30 minutes
+      - WATCHTOWER_POLL_INTERVAL=14400 # Check for updates every 4 hours (safe production interval)
       - WATCHTOWER_CLEANUP=true # Remove old images after updating
       - WATCHTOWER_INCLUDE_RESTARTING=true
       - WATCHTOWER_INCLUDE_STOPPED=true
-    command: --interval 1800 --cleanup
+      - DOCKER_API_VERSION=1.51 # Force API version to match Docker daemon
+      - WATCHTOWER_DEBUG=false # Disable debug for production
+      - WATCHTOWER_NOTIFICATIONS_LEVEL=info # Reduce log verbosity
+    command: --interval 14400 --cleanup
     networks:
       - flawless-net
     deploy:
@@ -127,6 +130,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false" # CRITICAL: Exclude from auto-updates
     volumes:
       - pgdata_local_all:/var/lib/postgresql/data
     networks:
@@ -236,36 +241,6 @@ services:
         delay: 5s
         max_attempts: 5
         window: 120s
-
-  db-backup:
-    image: alpine:latest
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./backups:/backups
-    command: >
-      sh -c "
-        apk add --no-cache docker-cli mongodb-tools postgresql-client &&
-        while true; do
-          echo 'Starting database backup...' &&
-          mkdir -p /backups/$$(date +%Y%m%d) &&
-          echo 'Cleaning old backups (keeping last 7 days)...' &&
-          find /backups -type d -mtime +7 -exec rm -rf {} + 2>/dev/null || true &&
-          echo 'Backup completed. Next backup in 24 hours...' &&
-          sleep 86400
-        done
-      "
-    networks:
-      - flawless-net
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
-        delay: 60s
-        max_attempts: 3
-        window: 300s
-      placement:
-        constraints:
-          - node.role == manager
 
 volumes:
   mongo-data:

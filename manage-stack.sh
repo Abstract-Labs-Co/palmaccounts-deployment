@@ -63,28 +63,68 @@ case "$1" in
         ;;
     backup-logs)
         echo "💾 Backup Service Logs:"
-        docker service logs -f ${STACK_NAME}_db-backup
+        docker service logs -f ${STACK_NAME}_midnight-backup
+        ;;
+    backup-logs)
+        echo "� Backup service has been removed"
+        echo "Use manual backup methods if needed"
+        ;;
+    backup)
+        echo "💾 Backup service has been removed from stack"
+        echo "For manual backups, you can use:"
+        echo "docker exec -it \$(docker ps -q -f name=palm-stack_postgres) pg_dump -U postgres postgres > backup.sql"
+        ;;
+    backup-restore)
+        echo "� Backup/restore service has been removed"
+        echo "Use manual PostgreSQL restore methods if needed"
+        ;;
+    utils)
+        echo "🛠️ Utilities - Select action:"
+        echo "1. permissions  - Check Docker permissions"
+        echo "2. health      - Run health check" 
+        echo "3. monitor     - Monitor logs"
+        echo ""
+        case "$2" in
+            permissions)
+                echo "🔧 Checking Docker permissions..."
+                docker info > /dev/null 2>&1 && echo "✅ Docker access OK" || echo "❌ Docker permission issues"
+                ;;
+            health)
+                echo "🩺 Running health check..."
+                ./health-check.sh
+                ;;
+            monitor)
+                echo "🔍 Starting log monitoring..."
+                ./monitor-logs.sh
+                ;;
+            *)
+                echo "Usage: $0 utils {permissions|health|monitor}"
+                ;;
+        esac
         ;;
     health)
-        echo "🩺 Running Health Check..."
+        echo "🩺 Running Comprehensive Health Check..."
         ./health-check.sh
         ;;
     monitor)
         if [ -z "$2" ]; then
             echo "🔍 Monitoring ALL services logs (real-time)"
-            echo "Use: $0 monitor <service-name> for specific service"
             echo "Press Ctrl+C to stop"
             ./monitor-logs.sh
         else
             echo "🔍 Monitoring $2 service logs (real-time)"
             echo "Press Ctrl+C to stop"
-            ./monitor-logs.sh $2
+            docker service logs -f ${STACK_NAME}_$2
         fi
+        ;;
+    permissions)
+        echo "🔧 Checking Docker Permissions..."
+        docker info > /dev/null 2>&1 && echo "✅ Docker access OK" || echo "❌ Docker permission issues - try: sudo usermod -aG docker $USER"
         ;;
     *)
         echo "Docker Swarm Stack Management Script"
         echo ""
-        echo "Usage: $0 {status|logs|scale|update|restart|stop|nodes|watchtower-logs|cleanup-logs|backup-logs|health|monitor}"
+        echo "Usage: $0 {status|logs|scale|update|restart|stop|nodes|watchtower-logs|cleanup-logs|utils|health|monitor|permissions}"
         echo ""
         echo "Commands:"
         echo "  status              - Show services status and processes"
@@ -96,17 +136,22 @@ case "$1" in
         echo "  nodes              - Show swarm nodes"
         echo "  watchtower-logs    - Show Watchtower logs"
         echo "  cleanup-logs       - Show Docker cleanup service logs"
-        echo "  backup-logs        - Show database backup service logs"
+        echo "  utils <cmd>        - Utilities (permissions|health|monitor)"
         echo "  health             - Run comprehensive health check"
-        echo "  monitor [service]  - Real-time log monitoring (all services or specific)"
+        echo "  monitor [service]  - Real-time log monitoring (all or specific)"
+        echo "  permissions        - Check Docker permission issues"
         echo ""
         echo "Examples:"
-        echo "  $0 status"
-        echo "  $0 logs api"
-        echo "  $0 scale api 3"
-        echo "  $0 restart watchtower"
-        echo "  $0 health"
-        echo "  $0 monitor          # Monitor all services"
-        echo "  $0 monitor efris    # Monitor only EFRIS service"
+        echo "  $0 status          # Check all services"
+        echo "  $0 logs api        # View API service logs"
+        echo "  $0 scale api 3     # Scale API to 3 replicas"
+        echo "  $0 restart watchtower  # Restart watchtower service"
+        echo "  $0 health          # Run health diagnostics"
+        echo "  $0 monitor efris   # Monitor EFRIS service logs"
+        echo ""
+        echo "🤖 Automated Services:"
+        echo "  • Cleanup runs every 6 hours"
+        echo "  • Updates check every 4 hours"
+        echo "  • Manual backups: docker exec postgres pg_dump..."
         ;;
 esac
