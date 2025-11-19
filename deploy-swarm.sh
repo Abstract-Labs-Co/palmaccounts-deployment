@@ -103,6 +103,7 @@ if ! docker ps >/dev/null 2>&1; then
     else
         echo "✅ Docker permissions fixed successfully!"
     fi
+fi
 
 # Initialize Docker Swarm if not already initialized
 if ! docker info | grep -q "Swarm: active"; then
@@ -158,3 +159,4 @@ if [ $? -eq 0 ]; then
 else
     echo "❌ Failed to deploy stack"
     exit 1
+fi
