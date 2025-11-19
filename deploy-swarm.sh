@@ -158,4 +158,3 @@ if [ $? -eq 0 ]; then
 else
     echo "❌ Failed to deploy stack"
     exit 1
-fi
