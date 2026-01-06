@@ -57,6 +57,8 @@ services:
       - DOCKER_API_VERSION=1.51 # Force API version to match Docker daemon
       - WATCHTOWER_DEBUG=false # Disable debug for production
       - WATCHTOWER_NOTIFICATIONS_LEVEL=info # Reduce log verbosity
+      - WATCHTOWER_NO_PULL=false # Enable image pulls for digest-pinned images
+      - WATCHTOWER_LABEL_ENABLE=false # Monitor all containers by default
     command: --interval 14400 --cleanup
     networks:
       - flawless-net

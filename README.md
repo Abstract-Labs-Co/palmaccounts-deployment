@@ -73,11 +73,14 @@ After deployment, services are available at:
 ./manage-stack.sh logs api
 ./manage-stack.sh logs watchtower
 
+# Force update a service (pulls latest image and redeploys)
+./manage-stack.sh force-update api
+./manage-stack.sh force-update  # Updates all services
+
 # Scale a service (increase replicas)
 ./manage-stack.sh scale api 3
 
 # Update the stack after changing docker-compose.yml
-./manage-stack.sh update
 
 # Restart a service
 ./manage-stack.sh restart api
@@ -369,12 +372,32 @@ To update the stack configuration:
 
 ### Image Updates
 
-Watchtower handles automatic image updates, but you can also trigger manual updates:
+Watchtower handles automatic image updates every 30 minutes, but only when it detects a new image digest in the registry. Watchtower is designed NOT to update containers when the image digest is unchanged (even if you've pushed a new image with the same tag).
+
+**For automated updates:**
+
+- Watchtower checks for updates every 30 minutes
+- Only updates when the remote image digest differs from the local one
+- This is by design for stability and safety
+
+**For manual updates:**
 
 ```bash
-# Force update a specific service
+# Force update a specific service (pulls latest image and redeploys)
+./manage-stack.sh force-update api
+
+# Force update ALL services at once
+./manage-stack.sh force-update
+
+# Simple restart (uses existing local image)
 ./manage-stack.sh restart <service-name>
 ```
+
+The `force-update` command is useful when:
+
+- You've pushed a new image but want to update immediately (not wait for Watchtower)
+- You need to force a redeployment even if the image digest hasn't changed
+- You want to ensure you're running the absolute latest version from the registry
 
 ### Backup Considerations
 
