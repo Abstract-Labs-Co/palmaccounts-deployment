@@ -124,17 +124,89 @@ case "$1" in
     force-update)
         if [ -z "$2" ]; then
             echo "🔄 Force updating ALL services (pulls latest images)..."
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo ""
-            for service in $(docker stack services $STACK_NAME --format "{{.Name}}"); do
-                echo "⬇️  Pulling and updating: $service"
-                docker service update --force --with-registry-auth $service
+            
+            # Get list of services
+            services=$(docker stack services $STACK_NAME --format "{{.Name}}")
+            total=$(echo "$services" | wc -l)
+            current=0
+            
+            for service in $services; do
+                current=$((current + 1))
+                service_name=$(echo $service | sed "s/${STACK_NAME}_//")
+                
+                echo "[$current/$total] 🔄 Processing: $service_name"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                
+                # Get current image
+                current_image=$(docker service inspect $service --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' 2>/dev/null)
+                echo "📦 Current image: $current_image"
+                
+                # Extract image name without digest
+                image_name=$(echo $current_image | cut -d'@' -f1)
+                echo "⬇️  Pulling latest image: $image_name"
+                docker pull $image_name
+                
+                echo "🔄 Updating service with --force flag..."
+                docker service update --force --with-registry-auth $service --detach=false
+                
+                # Show new state
+                new_image=$(docker service inspect $service --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' 2>/dev/null)
+                echo "✅ Updated to: $new_image"
+                
+                # Show service status
+                replicas=$(docker service ls --filter name=$service --format "{{.Replicas}}")
+                echo "📊 Status: $replicas"
+                echo ""
             done
+            
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "✅ All services force updated successfully"
             echo ""
-            echo "✅ All services force updated"
+            echo "💡 View status: ./manage-stack.sh status"
+            echo "💡 View logs: ./manage-stack.sh logs <service-name>"
         else
-            echo "🔄 Force updating ${STACK_NAME}_$2 (pulls latest image)..."
-            docker service update --force --with-registry-auth ${STACK_NAME}_$2
-            echo "✅ Service ${STACK_NAME}_$2 force updated"
+            service_name=$2
+            full_service_name="${STACK_NAME}_${service_name}"
+            
+            echo "🔄 Force updating service: $service_name"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            
+            # Get current image
+            current_image=$(docker service inspect $full_service_name --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' 2>/dev/null)
+            if [ -z "$current_image" ]; then
+                echo "❌ Error: Service $service_name not found"
+                exit 1
+            fi
+            
+            echo "📦 Current image: $current_image"
+            
+            # Extract image name without digest
+            image_name=$(echo $current_image | cut -d'@' -f1)
+            echo "⬇️  Pulling latest image: $image_name"
+            docker pull $image_name
+            
+            echo ""
+            echo "🔄 Updating service with --force flag..."
+            docker service update --force --with-registry-auth $full_service_name --detach=false
+            
+            # Show new state
+            echo ""
+            new_image=$(docker service inspect $full_service_name --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' 2>/dev/null)
+            echo "✅ Updated to: $new_image"
+            
+            # Show service status
+            replicas=$(docker service ls --filter name=$full_service_name --format "{{.Replicas}}")
+            echo "📊 Status: $replicas"
+            
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "✅ Service $service_name force updated successfully"
+            echo ""
+            echo "💡 View logs: ./manage-stack.sh logs $service_name"
+            echo "💡 Monitor: ./manage-stack.sh monitor $service_name"
         fi
         ;;
     *)
