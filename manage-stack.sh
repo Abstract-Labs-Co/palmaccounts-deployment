@@ -123,7 +123,8 @@ case "$1" in
         ;;
     force-update)
         if [ -z "$2" ]; then
-            echo "🔄 Force updating ALL services (pulls latest images)..."
+            echo "🔄 Force updating ALL services (complete rebuild)..."
+            echo "⚠️  WARNING: This will kill services, delete images, and prune Docker system"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo ""
             
@@ -145,10 +146,26 @@ case "$1" in
                 
                 # Extract image name without digest
                 image_name=$(echo $current_image | cut -d'@' -f1)
-                echo "⬇️  Pulling latest image: $image_name"
+                
+                # Step 1: Stop service containers
+                echo "⏹️  Step 1: Stopping service containers..."
+                docker service scale $service=0
+                sleep 3
+                
+                # Step 2: Force remove the image
+                echo "🗑️  Step 2: Force removing image..."
+                docker rmi -f $image_name 2>/dev/null || echo "   (Image already removed)"
+                
+                # Step 3: Docker system prune
+                echo "🧹 Step 3: Running docker system prune..."
+                docker system prune -af
+                
+                # Step 4: Pull fresh image
+                echo "⬇️  Step 4: Pulling fresh image: $image_name"
                 docker pull $image_name
                 
-                echo "🔄 Updating service with --force flag..."
+                # Step 5: Scale back up and update
+                echo "🔄 Step 5: Scaling service back up and updating..."
                 docker service update --force --with-registry-auth $service --detach=false
                 
                 # Show new state
@@ -170,7 +187,8 @@ case "$1" in
             service_name=$2
             full_service_name="${STACK_NAME}_${service_name}"
             
-            echo "🔄 Force updating service: $service_name"
+            echo "🔄 Force updating service: $service_name (complete rebuild)"
+            echo "⚠️  WARNING: This will kill the service, delete its image, and prune Docker system"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo ""
             
@@ -185,11 +203,32 @@ case "$1" in
             
             # Extract image name without digest
             image_name=$(echo $current_image | cut -d'@' -f1)
-            echo "⬇️  Pulling latest image: $image_name"
+            
+            # Step 1: Stop service containers
+            echo ""
+            echo "⏹️  Step 1: Stopping service containers..."
+            docker service scale $full_service_name=0
+            echo "   Waiting for service to stop..."
+            sleep 5
+            
+            # Step 2: Force remove the image
+            echo ""
+            echo "🗑️  Step 2: Force removing image: $image_name"
+            docker rmi -f $image_name 2>/dev/null || echo "   (Image already removed)"
+            
+            # Step 3: Docker system prune
+            echo ""
+            echo "🧹 Step 3: Running docker system prune -af..."
+            docker system prune -af
+            
+            # Step 4: Pull fresh image
+            echo ""
+            echo "⬇️  Step 4: Pulling fresh image: $image_name"
             docker pull $image_name
             
+            # Step 5: Scale back up and update
             echo ""
-            echo "🔄 Updating service with --force flag..."
+            echo "🔄 Step 5: Scaling service back up and updating..."
             docker service update --force --with-registry-auth $full_service_name --detach=false
             
             # Show new state
