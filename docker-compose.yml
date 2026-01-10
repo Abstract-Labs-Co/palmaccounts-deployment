@@ -105,6 +105,8 @@ services:
 
   mongo:
     image: mongo:6.0
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false" # CRITICAL: Exclude from auto-updates
     volumes:
       - mongo-data:/data/db
     networks:

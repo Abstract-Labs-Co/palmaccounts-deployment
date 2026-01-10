@@ -125,6 +125,7 @@ case "$1" in
         if [ -z "$2" ]; then
             echo "🔄 Force updating ALL services (complete rebuild)..."
             echo "⚠️  WARNING: This will kill services, delete images, and prune Docker system"
+            echo "🛡️  NOTE: Skipping postgres and mongo to preserve data"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo ""
             
@@ -136,6 +137,12 @@ case "$1" in
             for service in $services; do
                 current=$((current + 1))
                 service_name=$(echo $service | sed "s/${STACK_NAME}_//")
+                
+                # Skip database services to preserve data
+                if [ "$service_name" = "postgres" ] || [ "$service_name" = "mongo" ]; then
+                    echo "[$current/$total] ⏭️  Skipping: $service_name (database - data preserved)"
+                    continue
+                fi
                 
                 echo "[$current/$total] 🔄 Processing: $service_name"
                 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -186,6 +193,13 @@ case "$1" in
         else
             service_name=$2
             full_service_name="${STACK_NAME}_${service_name}"
+            
+            # Prevent updating database services
+            if [ "$service_name" = "postgres" ] || [ "$service_name" = "mongo" ]; then
+                echo "❌ Cannot force-update $service_name - database service skipped to preserve data"
+                echo "💡 To update databases, use: ./manage-stack.sh update"
+                exit 1
+            fi
             
             echo "🔄 Force updating service: $service_name (complete rebuild)"
             echo "⚠️  WARNING: This will kill the service, delete its image, and prune Docker system"
