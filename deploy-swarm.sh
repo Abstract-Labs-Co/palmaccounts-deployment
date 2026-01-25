@@ -147,13 +147,10 @@ if [ $? -eq 0 ]; then
     echo "  - Palm API: http://localhost:3001"
     echo "  - Palm POS: http://localhost:3002"
     echo "  - Palm Admin: http://localhost:3003"
-    echo "  - PgAdmin: http://localhost:5050"
-    echo "  - PostgreSQL: localhost:5432"
     echo ""
     echo "🤖 Automated Services:"
     echo "  - Watchtower: Updates check every 4 hours"
     echo "  - Cleanup: Runs every 6 hours"
-    echo "  - PostgreSQL: Protected from auto-updates"
     echo ""
     echo "🔧 Docker permissions: Configured automatically"
 else

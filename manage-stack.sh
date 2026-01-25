@@ -61,23 +61,6 @@ case "$1" in
         echo "🧹 Cleanup Service Logs:"
         docker service logs -f ${STACK_NAME}_docker-cleanup
         ;;
-    backup-logs)
-        echo "💾 Backup Service Logs:"
-        docker service logs -f ${STACK_NAME}_midnight-backup
-        ;;
-    backup-logs)
-        echo "� Backup service has been removed"
-        echo "Use manual backup methods if needed"
-        ;;
-    backup)
-        echo "💾 Backup service has been removed from stack"
-        echo "For manual backups, you can use:"
-        echo "docker exec -it \$(docker ps -q -f name=palm-stack_postgres) pg_dump -U postgres postgres > backup.sql"
-        ;;
-    backup-restore)
-        echo "� Backup/restore service has been removed"
-        echo "Use manual PostgreSQL restore methods if needed"
-        ;;
     utils)
         echo "🛠️ Utilities - Select action:"
         echo "1. permissions  - Check Docker permissions"
@@ -125,7 +108,6 @@ case "$1" in
         if [ -z "$2" ]; then
             echo "🔄 Force updating ALL services (complete rebuild)..."
             echo "⚠️  WARNING: This will kill services, delete images, and prune Docker system"
-            echo "🛡️  NOTE: Skipping postgres and mongo to preserve data"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo ""
             
@@ -137,12 +119,6 @@ case "$1" in
             for service in $services; do
                 current=$((current + 1))
                 service_name=$(echo $service | sed "s/${STACK_NAME}_//")
-                
-                # Skip database services to preserve data
-                if [ "$service_name" = "postgres" ] || [ "$service_name" = "mongo" ]; then
-                    echo "[$current/$total] ⏭️  Skipping: $service_name (database - data preserved)"
-                    continue
-                fi
                 
                 echo "[$current/$total] 🔄 Processing: $service_name"
                 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -193,13 +169,6 @@ case "$1" in
         else
             service_name=$2
             full_service_name="${STACK_NAME}_${service_name}"
-            
-            # Prevent updating database services
-            if [ "$service_name" = "postgres" ] || [ "$service_name" = "mongo" ]; then
-                echo "❌ Cannot force-update $service_name - database service skipped to preserve data"
-                echo "💡 To update databases, use: ./manage-stack.sh update"
-                exit 1
-            fi
             
             echo "🔄 Force updating service: $service_name (complete rebuild)"
             echo "⚠️  WARNING: This will kill the service, delete its image, and prune Docker system"
@@ -296,6 +265,5 @@ case "$1" in
         echo "🤖 Automated Services:"
         echo "  • Cleanup runs every 6 hours"
         echo "  • Updates check every 4 hours"
-        echo "  • Manual backups: docker exec postgres pg_dump..."
         ;;
 esac
