@@ -131,6 +131,8 @@ services:
     image: axoblade/palmaccounts-api #fixerug/palm-api
     ports:
       - "3001:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       PORT: 3000
       COOKIE_SECURE: 0
