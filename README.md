@@ -1,445 +1,118 @@
-# Palm Deployment - Docker Swarm with Watchtower
+# Palm On-Prem Deployment
 
-This repository contains a Docker Swarm stack configuration for deploying the Palm application suite with automated updates using Watchtower.
+Docker Compose stack for running the latest PalmAccounts stack (dotnet API, ERP,
+POS, Platform) on a single on-prem machine, with no Traefik and no
+Watchtower/auto-update watchdog. Both were tried before and never worked
+reliably, so this branch deliberately keeps things simple: plain `docker
+compose`, Docker's own restart policies for auto-start, and manual, explicit
+updates.
 
-## 🏗️ Architecture
+## Architecture
 
-The stack includes the following services:
+- **api** — the .NET backend (`fixerug/palmaccounts-v1-prod-api`), talks to
+  Postgres and a local Redis cache.
+- **erp**, **pos**, **platform** — the Angular frontends, served by nginx.
+  Each proxies `/api/*` straight to the `api` container over plain HTTP on the
+  Docker network (see "Why custom nginx configs" below).
+- **redis** — local cache for the API. Not persisted; losing it just means a
+  cold cache, nothing durable lives there.
+- **Postgres is not part of this stack.** It must already be running on this
+  host (outside Docker) or reachable elsewhere on the network, and is
+  administered independently (backups, upgrades, tuning are out of scope
+  here).
 
-### Core Services
+## Why custom nginx configs
 
-- **EFRIS** (`axoblade/flawless-on-prem`) - Main EFRIS application
-- **EFRIS Router** (`axoblade/efris-router`) - Router service for EFRIS
-- **Palm API** (`axoblade/palmaccounts-api`) - Backend API service
-- **Palm POS** (`axoblade/palmaccounts-pos`) - Point of Sale frontend
-- **Palm Admin** (`axoblade/palmaccounts-admin`) - Administrative interface
+The ERP/POS/Platform images ship with a built-in entrypoint that requires an
+`API_UPSTREAM` hostname and always proxies to it over HTTPS
+(`proxy_pass https://$api_upstream`). That's built for the cloud/Dokploy setup
+where TLS already terminates in front of the container. On a bare on-prem box
+there's no TLS in front of anything, so this stack skips that entrypoint
+(`entrypoint: ["nginx", "-g", "daemon off;"]`) and mounts a plain-HTTP nginx
+config (`nginx/erp.conf`, `nginx/pos.conf`, `nginx/platform.conf`) that talks
+to `http://api:8080` directly over the Docker network instead. If you ever put
+this box behind real TLS, you can drop back to the stock image behavior by
+removing the `entrypoint:`/`volumes:` overrides and setting `API_UPSTREAM`.
 
-### Data Services
+## Prerequisites
 
-- **MongoDB** (`mongo:6.0`) - Database for EFRIS
-- **PostgreSQL** (`postgres:16-alpine`) - Database for Palm services
-- **PgAdmin** (`dpage/pgadmin4`) - PostgreSQL administration interface
+- Docker Engine with the Compose plugin (`docker compose version`).
+- Docker's own service enabled at boot, so containers with `restart:
+  unless-stopped` come back up after a reboot:
+  ```bash
+  sudo systemctl enable docker
+  ```
+- Postgres already running and reachable from this host, with the
+  `palmaccounts_global` database and a role for the API created ahead of
+  time.
 
-### DevOps Services
-
-- **Watchtower** (`containrrr/watchtower`) - Automated container updates
-- **Docker Cleanup** (`alpine:latest`) - Automatic cleanup of unused Docker resources
-- **DB Backup** (`alpine:latest`) - Database backup management (creates backup directories)
-- **Health Monitor** - Health check script for system monitoring
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Docker installed and running
-- Docker Swarm mode (will be initialized automatically)
-
-### 1. Deploy the Stack
-
-```bash
-./deploy-swarm.sh
-```
-
-This script will:
-
-- Initialize Docker Swarm if needed
-- Create required directories
-- Deploy all services
-- Show service status
-
-### 2. Access Services
-
-After deployment, services are available at:
-
-| Service      | URL                   | Description             |
-| ------------ | --------------------- | ----------------------- |
-| EFRIS        | http://localhost:3005 | Main EFRIS application  |
-| EFRIS Router | http://localhost:3122 | EFRIS routing service   |
-| Palm API     | http://localhost:3001 | Backend API             |
-| Palm POS     | http://localhost:3002 | Point of Sale interface |
-| Palm Admin   | http://localhost:3003 | Administrative panel    |
-| PgAdmin      | http://localhost:5050 | Database administration |
-| PostgreSQL   | localhost:5432        | Direct database access  |
-
-## 📋 Management
-
-### Using the Management Script
+## First deploy
 
 ```bash
-# Check status of all services
-./manage-stack.sh status
-
-# View logs for a specific service
-./manage-stack.sh logs api
-./manage-stack.sh logs watchtower
-
-# Force update a service (pulls latest image and redeploys)
-./manage-stack.sh force-update api
-./manage-stack.sh force-update  # Updates all services
-
-# Scale a service (increase replicas)
-./manage-stack.sh scale api 3
-
-# Update the stack after changing docker-compose.yml
-
-# Restart a service
-./manage-stack.sh restart api
-
-# View Watchtower logs (to see update activities)
-./manage-stack.sh watchtower-logs
-
-# Real-time monitoring of all services
-./manage-stack.sh monitor
-
-# Real-time monitoring of specific service
-./manage-stack.sh monitor efris
-
-# Stop the entire stack
-./manage-stack.sh stop
+cp .env.example .env
+# edit .env: DB_HOST/DB_USER/DB_PASSWORD, JWT_KEY, LAN_HOST
+./deploy.sh
 ```
 
-### Manual Docker Commands
+`LAN_HOST` is the address other machines on site use to reach this box (e.g.
+its LAN IP) — it's used to build the CORS allow-list for the API so the
+frontends can call it from other machines, not just from the box itself.
 
-If you prefer using Docker commands directly:
+Default ports (override in `.env` if any collide with something else on the
+host):
+
+| Service  | Port |
+| -------- | ---- |
+| API      | 5000 |
+| POS      | 3002 |
+| ERP      | 3003 |
+| Platform | 3004 |
+
+## Auto-start / restart
+
+Every container in this stack runs with `restart: unless-stopped`: Docker
+restarts a crashed container automatically, and restarts the whole stack when
+the Docker daemon comes up (e.g. after a reboot), but a container you stop
+on purpose (`docker compose stop`, or `./manage.sh stop`) stays stopped until
+you start it again. There's no separate supervisor, health-triggered
+restarter, or reverse proxy watching over this — just Docker's built-in
+policy, which is the piece that actually keeps working.
+
+## Updating
+
+There is no auto-updater. Pull and redeploy new images by hand (or from your
+own cron/schedule) with:
 
 ```bash
-# Check service status
-docker stack services palm-stack
-
-# View service logs
-docker service logs palm-stack_api
-
-# Scale services
-docker service scale palm-stack_api=3
-
-# Update stack
-docker stack deploy -c docker-compose.yml palm-stack
-
-# Remove stack
-docker stack rm palm-stack
+./update.sh
 ```
 
-## 🔄 Auto-Restart Configuration
+This pulls whatever image tag each service is pinned to in `.env`
+(`API_TAG`, `ERP_TAG`, `POS_TAG`, `PLATFORM_TAG` — default `v1-prod`, which
+always tracks the latest `palm-prod-v1` build from the `deploy-palm-prod-v1`
+GitHub Actions workflow) and recreates any container whose image changed. To
+hold a site back from an update, pin the relevant `*_TAG` to a specific
+`release_version` tag from that workflow's run instead of `v1-prod`.
 
-All services are configured with robust restart policies to ensure they automatically restart when:
-
-- **PC reboots** - Services will automatically start when Docker starts
-- **Docker restarts** - All services will restart automatically
-- **Service crashes** - Failed services will restart automatically
-- **Container exits** - Any container exit will trigger a restart
-
-**Restart Policy Details:**
-
-- **Condition**: `any` - Restart on any exit condition
-- **Delay**: 5-10 seconds between restart attempts
-- **Max Attempts**: 5 attempts within 120 seconds
-- **Database Placement**: MongoDB and PostgreSQL run on manager nodes for stability
-
-## 🤖 Automated Updates with Watchtower
-
-Watchtower automatically monitors all containers for image updates every 30 minutes. When a new version of any image is available in the registry, Watchtower will:
-
-1. Pull the new image
-2. Stop the old container
-3. Start a new container with the updated image
-4. Clean up the old image
-
-### Watchtower Configuration
-
-- **Poll Interval**: 1800 seconds (30 minutes)
-- **Cleanup**: Enabled (removes old images)
-- **Scope**: All containers in the stack
-
-To monitor Watchtower activity:
+## Day-to-day management
 
 ```bash
-./manage-stack.sh watchtower-logs
+./manage.sh status            # container status
+./manage.sh logs api          # tail logs for one service
+./manage.sh restart pos       # restart one service
+./manage.sh stop              # stop everything (won't auto-restart until you start it)
+./manage.sh start             # start a previously stopped stack
+./health-check.sh             # quick status + API health check + resource usage
 ```
 
-## 🧹 Automatic Docker Cleanup
-
-A dedicated cleanup service runs every 6 hours to automatically remove:
-
-- **Unused containers** - Stopped containers not part of the active stack
-- **Dangling images** - Images not tagged or used by any container
-- **Unused volumes** - Volumes not mounted by any container
-- **Build cache** - Docker build cache and temporary files
-- **Networks** - Unused Docker networks
-
-### Cleanup Schedule
-
-- **Frequency**: Every 6 hours
-- **What's preserved**: Active containers, volumes, and images used by running services
-- **What's removed**: All unused Docker resources
-
-To monitor cleanup activity:
-
-```bash
-./manage-stack.sh logs docker-cleanup
-```
-
-To trigger manual cleanup:
-
-```bash
-# View cleanup logs
-./manage-stack.sh logs docker-cleanup
-
-# Restart cleanup service to run immediately
-./manage-stack.sh restart docker-cleanup
-```
-
-## 💾 Database Backup Management
-
-An automated backup service manages database backup directories and cleanup:
-
-- **Backup Directory**: `./backups` (created automatically)
-- **Schedule**: Daily backup directory creation
-- **Retention**: Automatically removes backup directories older than 7 days
-- **Location**: Backup directories are created locally for your backup scripts to use
-
-### Backup Management
-
-```bash
-# View backup service logs
-./manage-stack.sh backup-logs
-
-# Check backup directories
-ls -la ./backups
-
-# Restart backup service
-./manage-stack.sh restart db-backup
-```
-
-## 🩺 System Health Monitoring
-
-Use the built-in health check script to monitor your entire stack:
-
-```bash
-# Run comprehensive health check
-./manage-stack.sh health
-
-# Or run directly
-./health-check.sh
-```
-
-The health monitor provides:
-
-- Service status and replica counts
-- Resource usage overview
-- Storage usage statistics
-- Recent log snippets from all services
-- Failed service detection
-
-## 📊 Real-time Log Monitoring
-
-Monitor logs in real-time for debugging and monitoring:
-
-### Monitor All Services
-
-```bash
-# Monitor all services simultaneously (interleaved logs)
-./manage-stack.sh monitor
-
-# Or use the direct script
-./monitor-logs.sh
-```
-
-### Monitor Specific Service
-
-```bash
-# Monitor single service in real-time
-./manage-stack.sh monitor efris
-./manage-stack.sh monitor api
-
-# Alternative with more options
-docker service logs -f --timestamps palm-stack_efris
-docker service logs --tail 100 -f palm-stack_api
-```
-
-### Special Service Monitoring
-
-```bash
-# Monitor update activities
-./manage-stack.sh watchtower-logs
-
-# Monitor cleanup activities
-./manage-stack.sh cleanup-logs
-
-# Monitor backup activities
-./manage-stack.sh backup-logs
-```
-
-**Tip**: Press `Ctrl+C` to stop real-time monitoring## 🔧 Configuration
-
-### Environment Variables
-
-Create a `.env` file in this directory with the following variables for the EFRIS service:
-
-```env
-# Add your EFRIS-specific environment variables here
-NODE_ENV=production
-# Add other environment variables as needed
-```
-
-### Database Credentials
-
-**PostgreSQL:**
-
-- Username: `postgres`
-- Password: `postgres`
-- Database: `postgres`
-- Port: `5432`
-
-**PgAdmin:**
-
-- Email: `admin@palmaccounts.com`
-- Password: `password`
-
-### Volume Mounts
-
-- `./tmp` → `/tmp_privateKeys` (EFRIS Router private keys)
-- `mongo-data` → MongoDB data persistence
-- `pgdata_local_all` → PostgreSQL data persistence
-
-## 🔍 Monitoring & Troubleshooting
-
-### Check Service Health
-
-```bash
-# Overall stack status
-./manage-stack.sh status
-
-# Detailed service processes
-docker stack ps palm-stack
-
-# Service logs
-./manage-stack.sh logs <service-name>
-```
-
-### Common Issues
-
-1. **Service Won't Start**: Check logs for the specific service
-
-   ```bash
-   ./manage-stack.sh logs <service-name>
-   ```
-
-2. **Port Conflicts**: Ensure no other services are using the required ports
-
-   ```bash
-   lsof -i :3001  # Check if port 3001 is in use
-   ```
-
-3. **Volume Permissions**: Ensure the `./tmp` directory has proper permissions
-
-   ```bash
-   ls -la ./tmp
-   ```
-
-4. **Swarm Not Initialized**: Run the deployment script which will initialize it
-
-   ```bash
-   ./deploy-swarm.sh
-   ```
-
-5. **Docker Permission Issues**: If services can't access Docker daemon
-   ```bash
-   ./fix-docker-permissions.sh --fix
-   ```
-
-### Scaling Services
-
-All services start with 1 replica by default. You can scale them for high availability or increased load:
-
-```bash
-# Scale API service to 3 replicas for higher availability
-./manage-stack.sh scale api 3
-
-# Scale POS service to 2 replicas
-./manage-stack.sh scale pos 2
-```
-
-Database services (MongoDB and PostgreSQL) should remain at 1 replica to maintain data consistency.
-
-## 🔄 Updates and Maintenance
-
-### Manual Updates
-
-To update the stack configuration:
-
-1. Edit `docker-compose.yml`
-2. Run: `./manage-stack.sh update`
-
-### Image Updates
-
-Watchtower handles automatic image updates every 30 minutes, but only when it detects a new image digest in the registry. Watchtower is designed NOT to update containers when the image digest is unchanged (even if you've pushed a new image with the same tag).
-
-**For automated updates:**
-
-- Watchtower checks for updates every 30 minutes
-- Only updates when the remote image digest differs from the local one
-- This is by design for stability and safety
-
-**For manual updates:**
-
-```bash
-# Force update a specific service (pulls latest image and redeploys)
-./manage-stack.sh force-update api
-
-# Force update ALL services at once
-./manage-stack.sh force-update
-
-# Simple restart (uses existing local image)
-./manage-stack.sh restart <service-name>
-```
-
-The `force-update` command is useful when:
-
-- You've pushed a new image but want to update immediately (not wait for Watchtower)
-- You need to force a redeployment even if the image digest hasn't changed
-- You want to ensure you're running the absolute latest version from the registry
-
-### Backup Considerations
-
-Important data locations to backup:
-
-- PostgreSQL data: `pgdata_local_all` volume
-- MongoDB data: `mongo-data` volume
-- EFRIS private keys: `./tmp` directory
-
-## 📁 File Structure
+## File layout
 
 ```
-palm_deployment/
-├── docker-compose.yml          # Main stack configuration
-├── deploy-swarm.sh            # Initial deployment script
-├── manage-stack.sh            # Stack management script
-├── monitor-logs.sh            # Real-time log monitoring
-├── health-check.sh            # System health checker
-├── fix-docker-permissions.sh  # Docker permissions fixer
-├── README.md                  # This documentation
-├── .env                       # Environment variables (create this)
-├── tmp/                       # EFRIS private keys directory (auto-created)
-└── backups/                   # Database backup directories (auto-created)
+docker-compose.yml   # the stack: redis, api, erp, pos, platform
+nginx/               # plain-HTTP nginx configs for erp/pos/platform (see above)
+.env.example          # copy to .env and fill in per-site values
+deploy.sh            # first deploy / bring the stack up
+update.sh            # manual image pull + redeploy
+manage.sh            # status/logs/restart/stop/start
+health-check.sh      # quick health snapshot
 ```
-
-## 🆘 Support
-
-For troubleshooting:
-
-1. Check service logs: `./manage-stack.sh logs <service>`
-2. Verify service status: `./manage-stack.sh status`
-3. Check Watchtower activity: `./manage-stack.sh watchtower-logs`
-4. Ensure all required ports are available
-5. Verify Docker Swarm is active: `docker info | grep Swarm`
-
-## 🔒 Security Notes
-
-- Change default database passwords in production
-- Use secrets management for sensitive environment variables
-- Ensure proper firewall configuration for exposed ports
-- Regularly update base images through Watchtower or manual updates
-
----
-
-**Note**: This deployment is configured for development/testing. For production deployments, consider additional security measures, load balancing, and backup strategies.
