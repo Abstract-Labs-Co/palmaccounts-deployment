@@ -80,8 +80,8 @@ policy, which is the piece that actually keeps working.
 
 ## Updating
 
-There is no auto-updater. Pull and redeploy new images by hand (or from your
-own cron/schedule) with:
+There is no Watchtower-style auto-updater watching the registry (that's the
+piece that never worked reliably). Instead, pull and redeploy new images with:
 
 ```bash
 ./update.sh
@@ -93,6 +93,23 @@ always tracks the latest `palm-prod-v1` build from the `deploy-palm-prod-v1`
 GitHub Actions workflow) and recreates any container whose image changed. To
 hold a site back from an update, pin the relevant `*_TAG` to a specific
 `release_version` tag from that workflow's run instead of `v1-prod`.
+
+### Running it on a schedule
+
+To have this happen automatically instead of by hand, install a host cron job
+that just calls the same `update.sh`:
+
+```bash
+./install-update-cron.sh              # defaults to 03:00 daily
+./install-update-cron.sh "0 */6 * * *"  # or pick your own cron schedule
+```
+
+This is plain `cron` calling a script that already works standalone — no
+extra container, no Docker socket exposure, no registry-polling daemon to
+silently fall over. Output goes to `logs/update.log`. Re-running
+`install-update-cron.sh` replaces its own previous entry rather than
+stacking duplicates. To remove it, run `crontab -e` and delete the line
+tagged `palm-on-prem-update`.
 
 ## Day-to-day management
 
@@ -108,11 +125,12 @@ hold a site back from an update, pin the relevant `*_TAG` to a specific
 ## File layout
 
 ```
-docker-compose.yml   # the stack: redis, api, erp, pos, platform
-nginx/               # plain-HTTP nginx configs for erp/pos/platform (see above)
-.env.example          # copy to .env and fill in per-site values
-deploy.sh            # first deploy / bring the stack up
-update.sh            # manual image pull + redeploy
-manage.sh            # status/logs/restart/stop/start
-health-check.sh      # quick health snapshot
+docker-compose.yml     # the stack: redis, api, erp, pos, platform
+nginx/                 # plain-HTTP nginx configs for erp/pos/platform (see above)
+.env.example           # copy to .env and fill in per-site values
+deploy.sh              # first deploy / bring the stack up
+update.sh              # manual image pull + redeploy
+install-update-cron.sh # installs a cron job that runs update.sh on a schedule
+manage.sh              # status/logs/restart/stop/start
+health-check.sh        # quick health snapshot
 ```
