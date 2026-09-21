@@ -7,6 +7,11 @@ reliably, so this branch deliberately keeps things simple: plain `docker
 compose`, Docker's own restart policies for auto-start, and manual, explicit
 updates.
 
+**Temporary:** this stack currently pulls the `new-palm-test-branch` test
+images (built by `deploy-new-palm-test-branch.yml`), not the `palm-prod-v1`
+images, so on-prem testing can track the test branch. See "Updating" below
+for the image/tag details and how to switch back to prod images later.
+
 ## Architecture
 
 - **api** — the .NET backend (`fixerug/palmaccounts-v1-prod-api`), talks to
@@ -90,12 +95,29 @@ piece that never worked reliably). Instead, pull and redeploy new images with:
 ```
 
 This pulls whatever image tag each service is pinned to in `.env`
-(`API_TAG`, `ERP_TAG`, `POS_TAG`, `PLATFORM_TAG`, `PALM_CAFE_TAG` — default
-`v1-prod`, which always tracks the latest `palm-prod-v1` build from the
-`deploy-palm-prod-v1` GitHub Actions workflow) and recreates any container
-whose image changed. To hold a site back from an update, pin the relevant
-`*_TAG` to a specific `release_version` tag from that workflow's run instead
-of `v1-prod`.
+(`API_TAG`, `ERP_TAG`, `POS_TAG`, `PLATFORM_TAG`, `PALM_CAFE_TAG`) and
+recreates any container whose image changed.
+
+Right now the images in `docker-compose.yml` point at the
+`new-palm-test-branch` test repos, not the prod ones:
+
+| Service   | Image                                     | Floating tag    |
+| --------- | ------------------------------------------ | --------------- |
+| api       | `fixerug/palmaccounts-new-test-api`         | `new-test-api`  |
+| erp       | `fixerug/palmaccounts-new-erp-test`         | `new-test-api`  |
+| pos       | `fixerug/palmaccounts-new-pos-test`         | `new-test-api`  |
+| platform  | `fixerug/palmaccounts-new-platform-test`    | `new-test-api`  |
+| palm-cafe | `fixerug/palmaccounts-new-palm-cafe-test`   | `new-test-api`  |
+
+These are built by `deploy-new-palm-test-branch.yml` and update on every
+push to `new-palm-test-branch`. To hold a site back from an update, pin the
+relevant `*_TAG` in `.env` to a specific `release_version` tag from that
+workflow's run instead of `new-test-api`.
+
+To move this stack back to the production `palm-prod-v1` images later,
+change each `image:` line in `docker-compose.yml` back to the
+`fixerug/palmaccounts-v1-prod-*` repos (see the workflow at
+`deploy-palm-prod-v1.yml`) and set the `*_TAG` defaults back to `v1-prod`.
 
 ### Running it on a schedule
 

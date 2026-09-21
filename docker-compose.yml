@@ -7,7 +7,9 @@ services:
       - palm-net
 
   api:
-    image: fixerug/palmaccounts-v1-prod-api:${API_TAG:-v1-prod}
+    # TEMPORARY: pointing at the new-palm-test-branch test images (built by
+    # deploy-new-palm-test-branch.yml) instead of the palm-prod-v1 images.
+    image: fixerug/palmaccounts-new-test-api:${API_TAG:-new-test-api}
     container_name: palm-api
     restart: unless-stopped
     depends_on:
@@ -50,7 +52,8 @@ services:
       - palm-net
 
   erp:
-    image: fixerug/palmaccounts-v1-prod-erp:${ERP_TAG:-v1-prod}
+    # TEMPORARY: new-palm-test-branch test image.
+    image: fixerug/palmaccounts-new-erp-test:${ERP_TAG:-new-test-api}
     container_name: palm-erp
     restart: unless-stopped
     depends_on:
@@ -66,7 +69,8 @@ services:
       - palm-net
 
   pos:
-    image: fixerug/palmaccounts-v1-prod-pos:${POS_TAG:-v1-prod}
+    # TEMPORARY: new-palm-test-branch test image.
+    image: fixerug/palmaccounts-new-pos-test:${POS_TAG:-new-test-api}
     container_name: palm-pos
     restart: unless-stopped
     depends_on:
@@ -80,7 +84,8 @@ services:
       - palm-net
 
   platform:
-    image: fixerug/palmaccounts-v1-prod-platform:${PLATFORM_TAG:-v1-prod}
+    # TEMPORARY: new-palm-test-branch test image.
+    image: fixerug/palmaccounts-new-platform-test:${PLATFORM_TAG:-new-test-api}
     container_name: palm-platform
     restart: unless-stopped
     depends_on:
@@ -94,7 +99,8 @@ services:
       - palm-net
 
   palm-cafe:
-    image: fixerug/palmaccounts-v1-prod-palm-cafe:${PALM_CAFE_TAG:-v1-prod}
+    # TEMPORARY: new-palm-test-branch test image.
+    image: fixerug/palmaccounts-new-palm-cafe-test:${PALM_CAFE_TAG:-new-test-api}
     container_name: palm-cafe
     restart: unless-stopped
     depends_on:
