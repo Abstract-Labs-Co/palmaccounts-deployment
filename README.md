@@ -1,7 +1,7 @@
 # Palm On-Prem Deployment
 
 Docker Compose stack for running the latest PalmAccounts stack (dotnet API, ERP,
-POS, Platform) on a single on-prem machine, with no Traefik and no
+POS, Platform, Palm Cafe) on a single on-prem machine, with no Traefik and no
 Watchtower/auto-update watchdog. Both were tried before and never worked
 reliably, so this branch deliberately keeps things simple: plain `docker
 compose`, Docker's own restart policies for auto-start, and manual, explicit
@@ -11,9 +11,9 @@ updates.
 
 - **api** — the .NET backend (`fixerug/palmaccounts-v1-prod-api`), talks to
   Postgres and a local Redis cache.
-- **erp**, **pos**, **platform** — the Angular frontends, served by nginx.
-  Each proxies `/api/*` straight to the `api` container over plain HTTP on the
-  Docker network (see "Why custom nginx configs" below).
+- **erp**, **pos**, **platform**, **palm-cafe** — the Angular frontends,
+  served by nginx. Each proxies `/api/*` straight to the `api` container over
+  plain HTTP on the Docker network (see "Why custom nginx configs" below).
 - **redis** — local cache for the API. Not persisted; losing it just means a
   cold cache, nothing durable lives there.
 - **Postgres is not part of this stack.** It must already be running on this
@@ -23,16 +23,17 @@ updates.
 
 ## Why custom nginx configs
 
-The ERP/POS/Platform images ship with a built-in entrypoint that requires an
-`API_UPSTREAM` hostname and always proxies to it over HTTPS
+The ERP/POS/Platform/Palm Cafe images ship with a built-in entrypoint that
+requires an `API_UPSTREAM` hostname and always proxies to it over HTTPS
 (`proxy_pass https://$api_upstream`). That's built for the cloud/Dokploy setup
 where TLS already terminates in front of the container. On a bare on-prem box
 there's no TLS in front of anything, so this stack skips that entrypoint
 (`entrypoint: ["nginx", "-g", "daemon off;"]`) and mounts a plain-HTTP nginx
-config (`nginx/erp.conf`, `nginx/pos.conf`, `nginx/platform.conf`) that talks
-to `http://api:8080` directly over the Docker network instead. If you ever put
-this box behind real TLS, you can drop back to the stock image behavior by
-removing the `entrypoint:`/`volumes:` overrides and setting `API_UPSTREAM`.
+config (`nginx/erp.conf`, `nginx/pos.conf`, `nginx/platform.conf`,
+`nginx/palm-cafe.conf`) that talks to `http://api:8080` directly over the
+Docker network instead. If you ever put this box behind real TLS, you can
+drop back to the stock image behavior by removing the `entrypoint:`/`volumes:`
+overrides and setting `API_UPSTREAM`.
 
 ## Prerequisites
 
@@ -61,12 +62,13 @@ frontends can call it from other machines, not just from the box itself.
 Default ports (override in `.env` if any collide with something else on the
 host):
 
-| Service  | Port |
-| -------- | ---- |
-| API      | 5000 |
-| POS      | 3002 |
-| ERP      | 3003 |
-| Platform | 3004 |
+| Service   | Port |
+| --------- | ---- |
+| API       | 5000 |
+| POS       | 3002 |
+| ERP       | 3003 |
+| Platform  | 3004 |
+| Palm Cafe | 3005 |
 
 ## Auto-start / restart
 
@@ -88,11 +90,12 @@ piece that never worked reliably). Instead, pull and redeploy new images with:
 ```
 
 This pulls whatever image tag each service is pinned to in `.env`
-(`API_TAG`, `ERP_TAG`, `POS_TAG`, `PLATFORM_TAG` — default `v1-prod`, which
-always tracks the latest `palm-prod-v1` build from the `deploy-palm-prod-v1`
-GitHub Actions workflow) and recreates any container whose image changed. To
-hold a site back from an update, pin the relevant `*_TAG` to a specific
-`release_version` tag from that workflow's run instead of `v1-prod`.
+(`API_TAG`, `ERP_TAG`, `POS_TAG`, `PLATFORM_TAG`, `PALM_CAFE_TAG` — default
+`v1-prod`, which always tracks the latest `palm-prod-v1` build from the
+`deploy-palm-prod-v1` GitHub Actions workflow) and recreates any container
+whose image changed. To hold a site back from an update, pin the relevant
+`*_TAG` to a specific `release_version` tag from that workflow's run instead
+of `v1-prod`.
 
 ### Running it on a schedule
 
@@ -125,8 +128,8 @@ tagged `palm-on-prem-update`.
 ## File layout
 
 ```
-docker-compose.yml     # the stack: redis, api, erp, pos, platform
-nginx/                 # plain-HTTP nginx configs for erp/pos/platform (see above)
+docker-compose.yml     # the stack: redis, api, erp, pos, platform, palm-cafe
+nginx/                 # plain-HTTP nginx configs for erp/pos/platform/palm-cafe (see above)
 .env.example           # copy to .env and fill in per-site values
 deploy.sh              # first deploy / bring the stack up
 update.sh              # manual image pull + redeploy

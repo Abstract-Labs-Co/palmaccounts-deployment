@@ -30,9 +30,11 @@ services:
       Cors__Origins__0: "http://${LAN_HOST}:${POS_PORT:-3002}"
       Cors__Origins__1: "http://${LAN_HOST}:${ERP_PORT:-3003}"
       Cors__Origins__2: "http://${LAN_HOST}:${PLATFORM_PORT:-3004}"
-      Cors__Origins__3: "http://localhost:${POS_PORT:-3002}"
-      Cors__Origins__4: "http://localhost:${ERP_PORT:-3003}"
-      Cors__Origins__5: "http://localhost:${PLATFORM_PORT:-3004}"
+      Cors__Origins__3: "http://${LAN_HOST}:${PALM_CAFE_PORT:-3005}"
+      Cors__Origins__4: "http://localhost:${POS_PORT:-3002}"
+      Cors__Origins__5: "http://localhost:${ERP_PORT:-3003}"
+      Cors__Origins__6: "http://localhost:${PLATFORM_PORT:-3004}"
+      Cors__Origins__7: "http://localhost:${PALM_CAFE_PORT:-3005}"
     logging:
       driver: "json-file"
       options:
@@ -88,6 +90,20 @@ services:
       - "${PLATFORM_PORT:-3004}:80"
     volumes:
       - ./nginx/platform.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - palm-net
+
+  palm-cafe:
+    image: fixerug/palmaccounts-v1-prod-palm-cafe:${PALM_CAFE_TAG:-v1-prod}
+    container_name: palm-cafe
+    restart: unless-stopped
+    depends_on:
+      - api
+    entrypoint: ["nginx", "-g", "daemon off;"]
+    ports:
+      - "${PALM_CAFE_PORT:-3005}:80"
+    volumes:
+      - ./nginx/palm-cafe.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - palm-net
 

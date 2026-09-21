@@ -20,7 +20,8 @@ docker compose up -d
 echo
 docker compose ps
 echo
-echo "API:      http://localhost:$(grep -E '^API_PORT=' .env | cut -d= -f2 || echo 5000)"
-echo "POS:      http://localhost:$(grep -E '^POS_PORT=' .env | cut -d= -f2 || echo 3002)"
-echo "ERP:      http://localhost:$(grep -E '^ERP_PORT=' .env | cut -d= -f2 || echo 3003)"
-echo "Platform: http://localhost:$(grep -E '^PLATFORM_PORT=' .env | cut -d= -f2 || echo 3004)"
+echo "API:       http://localhost:$(grep -E '^API_PORT=' .env | cut -d= -f2 || echo 5000)"
+echo "POS:       http://localhost:$(grep -E '^POS_PORT=' .env | cut -d= -f2 || echo 3002)"
+echo "ERP:       http://localhost:$(grep -E '^ERP_PORT=' .env | cut -d= -f2 || echo 3003)"
+echo "Platform:  http://localhost:$(grep -E '^PLATFORM_PORT=' .env | cut -d= -f2 || echo 3004)"
+echo "Palm Cafe: http://localhost:$(grep -E '^PALM_CAFE_PORT=' .env | cut -d= -f2 || echo 3005)"
