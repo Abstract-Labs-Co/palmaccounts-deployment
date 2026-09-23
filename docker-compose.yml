@@ -29,6 +29,11 @@ services:
       ConnectionStrings__Redis: "redis:6379"
       Jwt__Key: "${JWT_KEY}"
       Jwt__Issuer: "${JWT_ISSUER:-PalmAccounts}"
+      # This stack is plain HTTP on the LAN. Browsers drop a Secure cookie that
+      # arrives over plain HTTP, so the refresh-token cookie was never stored and
+      # every reload or new tab went back to the login page. Remove this if the
+      # box is ever put behind real TLS.
+      Auth__Cookie__Secure: "false"
       # Frontends are reached both via the box's LAN address and via localhost (for
       # anyone browsing from the box itself), so both are allowed here.
       Cors__Origins__0: "http://${LAN_HOST}:${POS_PORT:-3002}"

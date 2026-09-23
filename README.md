@@ -12,6 +12,20 @@ images (built by `deploy-new-palm-test-branch.yml`), not the `palm-prod-v1`
 images, so on-prem testing can track the test branch. See "Updating" below
 for the image/tag details and how to switch back to prod images later.
 
+## Where this lives
+
+The source of truth is the `on-prem-deployment/` folder of the main
+`palmaccounts` repo, next to the app code. Change it there, then publish it to
+this repo's `on-prem` branch (which sites `git pull` from):
+
+```bash
+git subtree push --prefix=on-prem-deployment \
+  https://github.com/Abstract-Labs-Co/palmaccounts-deployment.git on-prem
+```
+
+Don't edit the `on-prem` branch directly; the next subtree push would have to
+merge it back.
+
 ## Architecture
 
 - **api** — the .NET backend (`fixerug/palmaccounts-v1-prod-api`), talks to
@@ -39,6 +53,18 @@ config (`nginx/erp.conf`, `nginx/pos.conf`, `nginx/platform.conf`,
 Docker network instead. If you ever put this box behind real TLS, you can
 drop back to the stock image behavior by removing the `entrypoint:`/`volumes:`
 overrides and setting `API_UPSTREAM`.
+
+## Why the API sets `Auth__Cookie__Secure=false`
+
+The API keeps the session in an httpOnly refresh-token cookie. Browsers refuse
+to store a cookie marked `Secure` when it arrives over plain HTTP, and only
+`localhost` counts as trustworthy without TLS. A LAN address like
+`http://192.168.1.100:3003` does not. Without this setting, users were sent
+back to the login page on every reload or new tab. The trade-off is that the
+refresh token travels in clear on the LAN, which is acceptable for a
+LAN-only box but not for anything reachable from outside. The API logs a
+warning at startup while it is set. If you put the box behind real TLS,
+remove the setting.
 
 ## Prerequisites
 
